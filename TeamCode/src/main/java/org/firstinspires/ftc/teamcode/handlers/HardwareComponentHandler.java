@@ -1,10 +1,16 @@
 package org.firstinspires.ftc.teamcode.handlers;
 
+import androidx.annotation.NonNull;
+
 import com.qualcomm.robotcore.hardware.HardwareDevice;
+
+import java.util.Optional;
 
 public abstract class HardwareComponentHandler<T extends HardwareDevice> {
 
+    protected String name;
     protected final T device;
+    protected double startPos;
 
     public HardwareComponentHandler(T device) {
         this.device = device;
@@ -13,6 +19,12 @@ public abstract class HardwareComponentHandler<T extends HardwareDevice> {
     public abstract void setPower(double power);
     public abstract void setPosition(double position);
     public abstract double getPosition();
+    public synchronized double getRelativePosition() {
+        return getPosition() - getStartPosition();
+    }
+    public double getStartPosition() {
+        return this.startPos;
+    }
 
 
     public void control(double input) {
@@ -32,14 +44,26 @@ public abstract class HardwareComponentHandler<T extends HardwareDevice> {
         return this.device;
     }
 
+    public void setName(String name) {
+        this.name = name;
+    }
     public String getName() {
-        String connectionInfo = device.getConnectionInfo();
-        String[] parts = connectionInfo.split(":");
-        if (parts.length >= 2) {
-            return parts[1];
-        } else {
-            return "Unknown";
-        }
+        return this.name;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (!(obj instanceof HardwareComponentHandler)) return false;
+        return device.equals(((HardwareComponentHandler<?>) obj).device);
+    }
+    @NonNull
+    @Override
+    public String toString() {
+        return Optional.ofNullable(name).orElse(device.toString());
+    }
+    @Override
+    public int hashCode() {
+        return device.hashCode();
     }
 
 }

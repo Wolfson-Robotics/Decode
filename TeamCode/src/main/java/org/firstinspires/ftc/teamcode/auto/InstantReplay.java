@@ -1,10 +1,15 @@
 package org.firstinspires.ftc.teamcode.auto;
 
+import static org.firstinspires.ftc.teamcode.util.Async.sleep;
+
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 
-import org.firstinspires.ftc.teamcode.HardwareSnapshot;
 import org.firstinspires.ftc.teamcode.PersistentTelemetry;
 import org.firstinspires.ftc.teamcode.RobotBase;
+import org.firstinspires.ftc.teamcode.auto.debug.HardwareContext;
+import org.firstinspires.ftc.teamcode.auto.debug.HardwareSnapshot;
+import org.firstinspires.ftc.teamcode.handlers.DcMotorExHandler;
+import org.firstinspires.ftc.teamcode.handlers.HandlerMap;
 import org.firstinspires.ftc.teamcode.util.Async;
 
 import java.io.BufferedReader;
@@ -19,37 +24,45 @@ import java.util.List;
 @Autonomous(name = "InstantReplay", group = "Auto")
 public class InstantReplay extends RobotBase {
 
+    private List<HardwareSnapshot> mmSnapshots, omSnapshots;
+
+    private Thread mmThread, omThread;
+    private final PersistentTelemetry pTelem = new PersistentTelemetry(telemetry);
+
+    // Runtime variables
+    private HardwareContext context;
+
 
     private List<HardwareSnapshot> parseLog(String type) {
 
         String instructName = type + "_instruct.txt";
-        telemetry.addLine("Which file would you like to load?");
+        telemetry.addLine("Which " + type + "file would you like to load?");
         telemetry.addLine("Press gamepad1 a for " + instructName);
         telemetry.addLine("Press gamepad1 b for latest " + type + " log");
         telemetry.update();
 
         String logPath = "";
-        while (logPath.isEmpty()) {
-            if (gamepad1.a) {
-                telemetry.addLine("Loading " + instructName + "...");
+        if (gamepad1.a) {
+            telemetry.addLine("Loading " + instructName + "...");
+            telemetry.update();
+            logPath = storagePath + "/autonomous/" + instructName;
+        }
+        else if (gamepad1.b) {
+            File[] logFiles = new File(logsPath).listFiles((dir, name) -> name.startsWith("debug_" + type + "_"));
+            if (logFiles == null || logFiles.length == 0) {
+                telemetry.addLine("No logs found");
                 telemetry.update();
-                logPath = storagePath + "/autonomous/" + instructName;
+                sleep(10000);
+                this.terminateOpModeNow();
+                return null;
             }
-            if (gamepad1.b) {
-                File[] logFiles = new File(logsPath).listFiles((dir, name) -> name.startsWith("debug_" + type + "_"));
-                if (logFiles == null || logFiles.length == 0) {
-                    telemetry.addLine("No logs found");
-                    telemetry.update();
-                    sleep(10000);
-                    this.terminateOpModeNow();
-                    return null;
-                }
 
-                telemetry.addLine("Loading latest " + type + " log...");
-                telemetry.update();
-                Arrays.sort(logFiles, (f1, f2) -> f2.getName().compareTo(f1.getName()));
-                logPath = logsPath + "/" + logFiles[0];
-            }
+            telemetry.addLine("Loading latest " + type + " log...");
+            telemetry.update();
+            Arrays.sort(logFiles, (f1, f2) -> f2.getName().compareTo(f1.getName()));
+            logPath = logsPath + "/" + logFiles[0].getName();
+        } else {
+            return null;
         }
 
 
@@ -77,77 +90,92 @@ public class InstantReplay extends RobotBase {
             this.terminateOpModeNow();
             return null;
         }
+        telemetry.addLine("Read " + type + " log file");
+        telemetry.update();
 
         return snapshots;
     }
 
+    @Override
+    public void init() {
+        super.init();
+        this.context = new HardwareContext(this::getVoltageSensor);
+        HandlerMap.allMotors().forEach(DcMotorExHandler::resetEncoder);
+    }
 
     @Override
-    public void runOpMode() throws InterruptedException {
-
-        List<HardwareSnapshot> mmSnapshots = this.parseLog("mm");
-        List<HardwareSnapshot> omSnapshots = this.parseLog("om");
-        if (mmSnapshots == null) {
-            telemetry.addLine("MM snapshots could not be loaded, aborting");
-            telemetry.update();
-            sleep(10000);
+    public void init_loop() {
+        if (this.mmSnapshots == null) {
+            this.mmSnapshots = this.parseLog("mm");
             return;
         }
-        if (omSnapshots == null) {
-            telemetry.addLine("OM snapshots could not be loaded, aborting");
-            telemetry.update();
-            sleep(5000);
+        if (this.omSnapshots == null) {
+            this.omSnapshots = this.parseLog("om");
             return;
         }
-        int initMMSize = mmSnapshots.size(), initOMSize = omSnapshots.size();
+        telemetry.addLine("Loaded " + this.mmSnapshots.size() + " MM snapshots");
+        telemetry.addLine("Loaded " + this.omSnapshots.size() + " OM snapshots");
+        telemetry.update();
+    }
 
-        PersistentTelemetry pTelem = new PersistentTelemetry(telemetry);
+
+    @Override
+    public void start() {
         pTelem.addLine("Starting replay...");
         pTelem.update();
 
-        waitForStart();
         long start = System.nanoTime();
-
-        Thread mmThread = new Thread(() -> {
-            if (mmSnapshots.isEmpty()) {
-                Thread.currentThread().interrupt();
-                return;
+        this.mmThread = new Thread(() -> {
+            while (!Thread.currentThread().isInterrupted() && !mmSnapshots.isEmpty()) {
+                HardwareSnapshot currentSnapshot = mmSnapshots.get(0);
+                currentSnapshot.delay(context.offset());
+                mmSnapshots.remove(0);
+                while (!Thread.currentThread().isInterrupted() && currentSnapshot.willhappen(System.nanoTime() - start)) {
+                    Thread.yield();
+                }
+                Async.async(() -> currentSnapshot.recreate(context));
+                while (!Thread.currentThread().isInterrupted() && currentSnapshot.happening(System.nanoTime() - start)) {
+                    Thread.yield();
+                }
+                context.prev(currentSnapshot);
             }
-            HardwareSnapshot currentSnapshot = mmSnapshots.get(0);
-            mmSnapshots.remove(0);
-            Async.async(currentSnapshot::recreate);
-
-            pTelem.setData("MM snapshots left", mmSnapshots.size() - initMMSize);
-            pTelem.update();
-
-            while (currentSnapshot.happened(System.nanoTime() - start)) {
-                idle();
-            }
+            Thread.currentThread().interrupt();
         });
+        this.omThread = new Thread(() -> {
+            while (!Thread.currentThread().isInterrupted() && !omSnapshots.isEmpty()) {
+                HardwareSnapshot currentSnapshot = omSnapshots.get(0);
+                omSnapshots.remove(0);
+                while (!Thread.currentThread().isInterrupted() && currentSnapshot.willhappen(System.nanoTime() - start)) {
+                    Thread.yield();
+                }
+                Async.async(currentSnapshot::recreate);
 
-        Thread omThread = new Thread(() -> {
-            if (omSnapshots.isEmpty()) {
-                Thread.currentThread().interrupt();
-                return;
+                pTelem.setData("OM snapshots left", omSnapshots.size());
+                pTelem.update();
+
+                while (!Thread.currentThread().isInterrupted() && currentSnapshot.happening(System.nanoTime() - start)) {
+                    Thread.yield();
+                }
             }
-            HardwareSnapshot currentSnapshot = omSnapshots.get(0);
-            omSnapshots.remove(0);
-            Async.async(currentSnapshot::recreate);
-
-            pTelem.setData("OM snapshots left", omSnapshots.size() - initOMSize);
-            pTelem.update();
-
-            while (currentSnapshot.happened(System.nanoTime() - start)) {
-                idle();
-            }
+            Thread.currentThread().interrupt();
         });
 
         mmThread.start();
         omThread.start();
 
-        mmThread.join();
-        omThread.join();
+    }
 
+    public void loop() {
+        if (!mmThread.isAlive() && !omThread.isAlive()) {
+            requestOpModeStop();
+        }
+    }
+
+    @Override
+    public void stop() {
+        if (mmThread != null) mmThread.interrupt();
+        if (omThread != null) omThread.interrupt();
+        super.stop();
     }
 
 }

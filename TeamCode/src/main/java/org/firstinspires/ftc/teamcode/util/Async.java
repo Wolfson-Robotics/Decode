@@ -10,8 +10,10 @@ import java.util.stream.Collectors;
 
 public class Async {
 
+    private static final List<Thread> all = new ArrayList<>();
+
     public static void runTasksAsync(List<Runnable> fns) {
-        ExecutorService executorService = Executors.newFixedThreadPool(fns.size()); // Thread pool
+        ExecutorService executorService = Executors.newFixedThreadPool(fns.size());
         List<CompletableFuture<Void>> futures = new ArrayList<>();
         fns.forEach(fn -> futures.add(CompletableFuture.runAsync(fn, executorService)));
 
@@ -24,7 +26,20 @@ public class Async {
     }
 
     public static void async(Runnable fn) {
-        new Thread(fn).start();
+        Thread tF = new Thread(fn);
+        tF.start();
+        all.add(tF);
+    }
+
+    public static void stopAll() {
+        all.forEach(Thread::interrupt);
+        all.clear();
+    }
+
+    public static void sleep(long ms) {
+        try {
+            Thread.sleep(ms);
+        } catch (Exception e) {}
     }
 
 }

@@ -1,75 +1,90 @@
-package  org.firstinspires.ftc.teamcode;
+package org.firstinspires.ftc.teamcode;
+
+import static org.firstinspires.ftc.teamcode.util.Async.sleep;
 
 import android.os.Environment;
 
-import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import com.qualcomm.hardware.rev.RevHubOrientationOnRobot;
+import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.hardware.CRServo;
-import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
-import com.qualcomm.robotcore.hardware.Servo;
+import com.qualcomm.robotcore.hardware.IMU;
+import com.qualcomm.robotcore.hardware.VoltageSensor;
 
-import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
+import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
+import org.firstinspires.ftc.robotcore.external.navigation.AngularVelocity;
+import org.firstinspires.ftc.robotcore.external.navigation.AxesOrder;
+import org.firstinspires.ftc.robotcore.external.navigation.AxesReference;
+import org.firstinspires.ftc.robotcore.external.navigation.Orientation;
+import org.firstinspires.ftc.robotcore.external.navigation.Quaternion;
+import org.firstinspires.ftc.robotcore.external.navigation.YawPitchRollAngles;
+import org.firstinspires.ftc.robotcore.external.stream.CameraStreamSource;
 import org.firstinspires.ftc.teamcode.handlers.DcMotorExHandler;
 import org.firstinspires.ftc.teamcode.handlers.HandlerMap;
 import org.firstinspires.ftc.teamcode.handlers.HardwareComponentHandler;
 import org.firstinspires.ftc.teamcode.handlers.ServoHandler;
-import org.openftc.easyopencv.OpenCvCamera;
-import org.openftc.easyopencv.OpenCvCameraFactory;
-import org.openftc.easyopencv.OpenCvCameraRotation;
+import org.firstinspires.ftc.teamcode.handlers.camera.CameraHandler;
+import org.firstinspires.ftc.teamcode.util.Async;
 
-import java.lang.reflect.Field;
+import java.util.Arrays;
+import java.util.Optional;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Stream;
 
-public abstract class RobotBase extends LinearOpMode {
+public abstract class RobotBase extends OpMode {
 
-    protected final DcMotorExHandler lf_drive;
-    protected final DcMotorExHandler lb_drive;
-    protected final DcMotorExHandler rf_drive;
-    protected final DcMotorExHandler rb_drive;
+    protected DcMotorExHandler lf_drive, lb_drive, rf_drive, rb_drive;
 
-    protected final DcMotorExHandler lift;
+    protected DcMotorExHandler lift;
 
     // Temporarily carry over components from the Into the Deep season
     // for testing for now
-    protected final ServoHandler arm;
-    protected final ServoHandler claw;
+    protected ServoHandler arm;
+    protected ServoHandler claw;
 
     // Second intake servos
-    protected final DcMotorExHandler slide1;
-    protected final DcMotorExHandler slide2;
-    protected final ServoHandler slideArm;
-    protected final CRServo leftRoller;
-    protected final CRServo rightRoller;
+    protected DcMotorExHandler slide1;
+    protected DcMotorExHandler slide2;
+    protected ServoHandler slideArm;
+    protected CRServo leftRoller;
+    protected CRServo rightRoller;
 
-    protected OpenCvCamera camera;
+    protected CameraHandler<? extends CameraStreamSource> camera;
 
     protected final String storagePath = Environment.getExternalStorageDirectory().getPath();
     protected final String logsPath = storagePath + "/Logs/";
 
+    // Runtime variables
+    private final AtomicBoolean stop = new AtomicBoolean(false);
 
 
-    public RobotBase() {
 
-        this.rf_drive = new DcMotorExHandler(hardwareMap.get(DcMotorEx.class, "rf_drive"));
-        this.rb_drive = new DcMotorExHandler(hardwareMap.get(DcMotorEx.class, "rb_drive"));
-        this.lf_drive = new DcMotorExHandler(hardwareMap.get(DcMotorEx.class, "lf_drive"));
-        this.lb_drive = new DcMotorExHandler(hardwareMap.get(DcMotorEx.class, "lb_drive"));
+    public void init() {
 
-        this.lift = new DcMotorExHandler(hardwareMap.get(DcMotorEx.class, "lift"));
-        this.arm = new ServoHandler(hardwareMap.get(Servo.class, "arm"));
-        this.claw = new ServoHandler(hardwareMap.get(Servo.class, "claw"));
+        DcMotorExHandler.setHardwareMap(hardwareMap);
+        ServoHandler.setHardwareMap(hardwareMap);
+        this.rf_drive = new DcMotorExHandler("rf_drive", false);
+        this.rb_drive = new DcMotorExHandler("rb_drive", false);
+        this.lf_drive = new DcMotorExHandler("lf_drive", false);
+        this.lb_drive = new DcMotorExHandler("lb_drive", false);
 
-        this.slide1 = new DcMotorExHandler(hardwareMap.get(DcMotorEx.class, "slide1"));
-        this.slide2 = new DcMotorExHandler(hardwareMap.get(DcMotorEx.class, "slide2"));
+//        this.lift = new DcMotorExHandler(hardwareMap.get(DcMotorEx.class, "lift"));
+        this.arm = new ServoHandler("arm");
+        this.claw = new ServoHandler("claw");
 
-        this.slideArm = new ServoHandler(hardwareMap.get(Servo.class, "slidearm"));
-        this.slideArm.setDirection(Servo.Direction.REVERSE);
 
-        this.leftRoller = hardwareMap.get(CRServo.class, "leftroller");
-        this.rightRoller = hardwareMap.get(CRServo.class, "rightroller");
+//        this.slide1 = new DcMotorExHandler(hardwareMap.get(DcMotorEx.class, "slide1"));
+//        this.slide2 = new DcMotorExHandler(hardwareMap.get(DcMotorEx.class, "slide2"));
+
+//        this.slideArm = new ServoHandler(hardwareMap.get(Servo.class, "slidearm"));
+//        this.slideArm.setDirection(Servo.Direction.REVERSE);
+
+//        this.leftRoller = hardwareMap.get(CRServo.class, "leftroller");
+//        this.rightRoller = hardwareMap.get(CRServo.class, "rightroller");
 
         this.lf_drive.setDirection(DcMotorSimple.Direction.REVERSE);
         this.lb_drive.setDirection(DcMotorSimple.Direction.REVERSE);
-        this.lift.setDirection(DcMotorSimple.Direction.REVERSE);
+//        this.lift.setDirection(DcMotorSimple.Direction.REVERSE);
 
         this.arm.scaleRange(0.75, 1);
         this.arm.min();
@@ -78,52 +93,97 @@ public abstract class RobotBase extends LinearOpMode {
         this.claw.max();
 
         this.registerHandlers();
+
+        IMU imu = hardwareMap.get(IMU.class, "imu");
+        IMU.Parameters test = new IMU.Parameters(
+                new RevHubOrientationOnRobot(
+                    RevHubOrientationOnRobot.LogoFacingDirection.FORWARD,
+                    RevHubOrientationOnRobot.UsbFacingDirection.LEFT
+                )
+        );
+        imu.initialize(test);
     }
 
     public void registerHandlers() {
-        Field[] fields = getClass().getDeclaredFields();
-        for (Field field : fields) {
+        Stream.concat(
+                Arrays.stream(getClass().getDeclaredFields()),
+                Arrays.stream(RobotBase.class.getDeclaredFields())
+        ).forEach(field -> {
             if (!HardwareComponentHandler.class.isAssignableFrom(field.getType())) {
-                continue;
+                return;
             }
             HardwareComponentHandler<?> handler;
             try {
                 handler = (HardwareComponentHandler<?>) field.get(this);
             } catch (IllegalAccessException e) {
-                continue;
+                return;
             }
-            HandlerMap.put(handler.getName(), handler);
-        }
+            if (handler == null) return;
+            HandlerMap.put(handler);
+        });
     }
 
 
+    // make dynamic based on voltage later
+    double powerFactor = 1.;
+    protected void moveBot(float vertical, float pivot, float horizontal) {
+//        pivot *= 0.6;
+        pivot *= 0.855f;
+        double rightFrontPower = powerFactor * (-pivot + (vertical - horizontal));
+        double rightBackPower = powerFactor * (-pivot + vertical + horizontal);
+        double leftFrontPower = powerFactor * (pivot + vertical + horizontal);
+        double leftBackPower = powerFactor * (pivot + (vertical - horizontal));
 
-    protected void initCamera() {
-        int cameraMonitorViewId = hardwareMap.appContext.getResources().getIdentifier("cameraMonitorViewId", "id", hardwareMap.appContext.getPackageName());
-        this.camera = OpenCvCameraFactory.getInstance().createWebcam(hardwareMap.get(WebcamName.class, "Webcam 1"), cameraMonitorViewId);
-        // TODO: Set sample pipeline here later
-//        this.pixelDetection = new PixelDetection(this.blue);
-//        camera.setPipeline(pixelDetection);
+        // Normalize wheel powers to be less than 1.0, just in case.
+        double max = Math.max(Math.abs(leftFrontPower), Math.abs(rightFrontPower));
+        max = Math.max(max, Math.abs(leftBackPower));
+        max = Math.max(max, Math.abs(rightBackPower));
+        if (max > 1.0) {
+            leftFrontPower /= max;
+            rightFrontPower /= max;
+            leftBackPower /= max;
+            rightBackPower /= max;
+        }
 
-        camera.openCameraDeviceAsync(new OpenCvCamera.AsyncCameraOpenListener()
-        {
-            @Override
-            public void onOpened()
-            {
-                camera.startStreaming(432,240, OpenCvCameraRotation.UPRIGHT);
+        rf_drive.setPower(rightFrontPower);
+        rb_drive.setPower(rightBackPower);
+        lf_drive.setPower(leftFrontPower);
+        lb_drive.setPower(leftBackPower);
+    }
+
+
+    protected Runnable toPersistentThread(Runnable fn) {
+        return () -> {
+            while (!Thread.currentThread().isInterrupted() && !stop.get()) {
+                try {
+                    fn.run();
+                } catch (Throwable t) {
+                    telemetry.addLine("Error in thread:");
+                    t.printStackTrace();
+                    telemetry.update();
+                    Thread.currentThread().interrupt();
+                }
+                sleep(10);
             }
-
-            @Override
-            public void onError(int errorCode) {
-                telemetry.addData("Camera error code:", errorCode);
-                telemetry.update();
-            }
-        });
-
+            Thread.currentThread().interrupt();
+        };
     }
 
     protected boolean isControlled(double control) {
         return Math.abs(control) > 0.1;
+    }
+
+    public VoltageSensor getVoltageSensor() {
+        return hardwareMap.voltageSensor.get("Control Hub");
+    }
+    public double getVoltage() {
+        return Optional.ofNullable(getVoltageSensor()).map(VoltageSensor::getVoltage).orElse(-1d);
+    }
+
+    @Override
+    public void stop() {
+        stop.set(true);
+        Async.stopAll();
     }
 
 
