@@ -58,12 +58,28 @@ public class ServoHandler extends HardwareComponentHandler<Servo> {
         }
     }
 
+    private int dirMult() {
+        return getDirection() == Servo.Direction.REVERSE ? -1 : 1;
+    }
+    private double powerDir(double targetPosition, double mult) {
+        return -dirMult() * (targetPosition > getPosition() ? mult : -mult);
+    }
+    private double powerDir(double targetPosition) {
+        return powerDir(targetPosition, 1);
+    }
+    private boolean towardsLower(double power) {
+        return (dirMult()*power) < 0;
+    }
+    private boolean towardsUpper(double power) {
+        return (dirMult()*power) > 0;
+    }
+
 
     public void setPower(double power) {
         if (power == 0) return;
-        if (power < 0) {
+        if (towardsLower(power) && !outOfOrAtMin()) {
             setPositionAsync(getPosition() - driveIncrement);
-        } else {
+        } else if (towardsUpper(power) && !outOfOrAtMax()){
             setPositionAsync(getPosition() + driveIncrement);
         }
     }
@@ -123,11 +139,26 @@ public class ServoHandler extends HardwareComponentHandler<Servo> {
     public boolean atMin() {
         return this.getPosition() == this.minPos;
     }
+    public boolean outOfMin() {
+        return getPosition() < minPos;
+    }
+    public boolean outOfOrAtMin() {
+        return atMin() || outOfMin();
+    }
     public boolean atMax() {
         return this.getPosition() == this.maxPos;
     }
+    public boolean outOfMax() {
+        return getPosition() > maxPos;
+    }
+    public boolean outOfOrAtMax() {
+        return atMax() || outOfMax();
+    }
     public double getPosition() {
         return device.getPosition();
+    }
+    public synchronized Servo.Direction getDirection() {
+        return device.getDirection();
     }
     public double getMin() {
         return this.minPos;

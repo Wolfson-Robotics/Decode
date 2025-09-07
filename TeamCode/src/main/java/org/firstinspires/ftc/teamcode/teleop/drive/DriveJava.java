@@ -46,19 +46,6 @@ public class DriveJava extends RobotBase {
         ).thenRunAsync(() -> cThreadExec.shutdown(), cThreadExec);
     }
 
-
-    // make dynamic based on voltage later
-    int powerFactor = 1;
-    protected void moveBot(float vertical, float pivot, float horizontal) {
-//        pivot *= 0.6;
-        pivot *= 0.855f;
-        rf_drive.setPower(powerFactor * (-pivot + (vertical - horizontal)));
-        rb_drive.setPower(powerFactor * (-pivot + vertical + horizontal));
-        lf_drive.setPower(powerFactor * (pivot + vertical + horizontal));
-        lb_drive.setPower(powerFactor * (pivot + (vertical - horizontal)));
-    }
-
-
     @Override
     public void init() {
 
@@ -93,6 +80,7 @@ public class DriveJava extends RobotBase {
 //        lift.control(gamepad2.right_stick_y);
 //        slide1.control(gamepad2.dpad_left, gamepad2.dpad_right);
 //        slide2.control(gamepad2.dpad_left, gamepad2.dpad_right);
+        scaleVoltPF();
         claw.toggleDual(isControlled(gamepad2.left_trigger), isControlled(gamepad2.right_trigger));
 /*
         if (gamepad2.right_bumper) {

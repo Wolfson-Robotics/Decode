@@ -4,20 +4,10 @@ import static org.firstinspires.ftc.teamcode.util.Async.sleep;
 
 import android.os.Environment;
 
-import com.qualcomm.hardware.rev.RevHubOrientationOnRobot;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
-import com.qualcomm.robotcore.hardware.CRServo;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
-import com.qualcomm.robotcore.hardware.IMU;
 import com.qualcomm.robotcore.hardware.VoltageSensor;
 
-import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
-import org.firstinspires.ftc.robotcore.external.navigation.AngularVelocity;
-import org.firstinspires.ftc.robotcore.external.navigation.AxesOrder;
-import org.firstinspires.ftc.robotcore.external.navigation.AxesReference;
-import org.firstinspires.ftc.robotcore.external.navigation.Orientation;
-import org.firstinspires.ftc.robotcore.external.navigation.Quaternion;
-import org.firstinspires.ftc.robotcore.external.navigation.YawPitchRollAngles;
 import org.firstinspires.ftc.robotcore.external.stream.CameraStreamSource;
 import org.firstinspires.ftc.teamcode.handlers.DcMotorExHandler;
 import org.firstinspires.ftc.teamcode.handlers.HandlerMap;
@@ -33,7 +23,8 @@ import java.util.stream.Stream;
 
 public abstract class RobotBase extends OpMode {
 
-    protected DcMotorExHandler lf_drive, lb_drive, rf_drive, rb_drive;
+    // TODO: Make protected?
+    public DcMotorExHandler lf_drive, lb_drive, rf_drive, rb_drive;
 
     protected DcMotorExHandler lift;
 
@@ -42,12 +33,6 @@ public abstract class RobotBase extends OpMode {
     protected ServoHandler arm;
     protected ServoHandler claw;
 
-    // Second intake servos
-    protected DcMotorExHandler slide1;
-    protected DcMotorExHandler slide2;
-    protected ServoHandler slideArm;
-    protected CRServo leftRoller;
-    protected CRServo rightRoller;
 
     protected CameraHandler<? extends CameraStreamSource> camera;
 
@@ -56,10 +41,20 @@ public abstract class RobotBase extends OpMode {
 
     // Runtime variables
     private final AtomicBoolean stop = new AtomicBoolean(false);
+    protected double powerFactor = 1;
+
+    // Voltage
+    public static final double NOMINAL_VOLTAGE = 14; //TODO: Check battery voltage
+    public static final double TOP_SCALE_FACTOR = 1.2; //120%
+    public static final double NO_VOLTAGE = -1;
+
+    // TODO: Re-engineer constants
+    protected static final double ROBOT_LENGTH = 13.62;
+    protected static final double TICS_PER_INCH = 0d, DEG_CONV = 0;
 
 
 
-    public void init() {
+    public void initMotors() {
 
         DcMotorExHandler.setHardwareMap(hardwareMap);
         ServoHandler.setHardwareMap(hardwareMap);
@@ -68,23 +63,13 @@ public abstract class RobotBase extends OpMode {
         this.lf_drive = new DcMotorExHandler("lf_drive", false);
         this.lb_drive = new DcMotorExHandler("lb_drive", false);
 
-//        this.lift = new DcMotorExHandler(hardwareMap.get(DcMotorEx.class, "lift"));
+        this.lift = new DcMotorExHandler("lift");
         this.arm = new ServoHandler("arm");
         this.claw = new ServoHandler("claw");
 
-
-//        this.slide1 = new DcMotorExHandler(hardwareMap.get(DcMotorEx.class, "slide1"));
-//        this.slide2 = new DcMotorExHandler(hardwareMap.get(DcMotorEx.class, "slide2"));
-
-//        this.slideArm = new ServoHandler(hardwareMap.get(Servo.class, "slidearm"));
-//        this.slideArm.setDirection(Servo.Direction.REVERSE);
-
-//        this.leftRoller = hardwareMap.get(CRServo.class, "leftroller");
-//        this.rightRoller = hardwareMap.get(CRServo.class, "rightroller");
-
         this.lf_drive.setDirection(DcMotorSimple.Direction.REVERSE);
         this.lb_drive.setDirection(DcMotorSimple.Direction.REVERSE);
-//        this.lift.setDirection(DcMotorSimple.Direction.REVERSE);
+        this.lift.setDirection(DcMotorSimple.Direction.REVERSE);
 
         this.arm.scaleRange(0.75, 1);
         this.arm.min();
@@ -93,16 +78,8 @@ public abstract class RobotBase extends OpMode {
         this.claw.max();
 
         this.registerHandlers();
-
-        IMU imu = hardwareMap.get(IMU.class, "imu");
-        IMU.Parameters test = new IMU.Parameters(
-                new RevHubOrientationOnRobot(
-                    RevHubOrientationOnRobot.LogoFacingDirection.FORWARD,
-                    RevHubOrientationOnRobot.UsbFacingDirection.LEFT
-                )
-        );
-        imu.initialize(test);
     }
+
 
     public void registerHandlers() {
         Stream.concat(
@@ -124,9 +101,30 @@ public abstract class RobotBase extends OpMode {
     }
 
 
-    // make dynamic based on voltage later
-    double powerFactor = 1.;
-    protected void moveBot(float vertical, float pivot, float horizontal) {
+    public void enableBrakes() {
+        this.lf_drive.enableBrake();
+        this.lb_drive.enableBrake();
+        this.rf_drive.enableBrake();
+        this.rb_drive.enableBrake();
+    }
+    public void disableBrakes() {
+        this.lf_drive.disableBrake();
+        this.lb_drive.disableBrake();
+        this.rf_drive.disableBrake();
+        this.rb_drive.disableBrake();
+    }
+
+    public void removeWheelPower() {
+        this.lf_drive.setPower(0);
+        this.lb_drive.setPower(0);
+        this.rf_drive.setPower(0);
+        this.rb_drive.setPower(0);
+    }
+
+
+
+
+    public void moveBot(float vertical, float pivot, float horizontal) {
 //        pivot *= 0.6;
         pivot *= 0.855f;
         double rightFrontPower = powerFactor * (-pivot + (vertical - horizontal));
@@ -152,6 +150,14 @@ public abstract class RobotBase extends OpMode {
     }
 
 
+    //Scale the powerFactor variable to the voltage.
+    //Used to keep a consistent motor speed and power as battery voltage dwindles.
+    protected void scaleVoltPF() {
+        double currentVoltage = getVoltage();
+        if (currentVoltage == NO_VOLTAGE) return;
+        powerFactor = Math.min((NOMINAL_VOLTAGE / currentVoltage), TOP_SCALE_FACTOR);
+    }
+
     protected Runnable toPersistentThread(Runnable fn) {
         return () -> {
             while (!Thread.currentThread().isInterrupted() && !stop.get()) {
@@ -173,11 +179,27 @@ public abstract class RobotBase extends OpMode {
         return Math.abs(control) > 0.1;
     }
 
+    // Parallel methods to that of LinearOpMode
+    protected boolean opModeIsActive() {
+        return !stop.get();
+    }
+    protected void idle() {
+        Thread.yield();
+    }
+
+
     public VoltageSensor getVoltageSensor() {
         return hardwareMap.voltageSensor.get("Control Hub");
     }
     public double getVoltage() {
-        return Optional.ofNullable(getVoltageSensor()).map(VoltageSensor::getVoltage).orElse(-1d);
+        return Optional.ofNullable(getVoltageSensor()).map(VoltageSensor::getVoltage).orElse(NO_VOLTAGE);
+    }
+
+
+
+    @Override
+    public void init() {
+        this.initMotors();
     }
 
     @Override

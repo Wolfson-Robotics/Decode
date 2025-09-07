@@ -1,14 +1,11 @@
 package org.firstinspires.ftc.teamcode.oldcodebase.teleop;
 
-import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
-
 import org.firstinspires.ftc.teamcode.oldcodebase.PersistentTelemetry;
 import org.firstinspires.ftc.teamcode.oldcodebase.RobotBase;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 
-@TeleOp(name = "ServoPlayground")
 public class ServoPlayground extends RobotBase {
 
     @Override

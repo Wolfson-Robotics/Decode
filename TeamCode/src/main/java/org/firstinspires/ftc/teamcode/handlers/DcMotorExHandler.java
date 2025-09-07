@@ -6,7 +6,9 @@ import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 
+import org.firstinspires.ftc.teamcode.util.GeneralUtils;
 import org.firstinspires.ftc.teamcode.util.IntegerBounds;
+import org.firstinspires.ftc.teamcode.util.nullable.NullableDouble;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -21,6 +23,7 @@ public class DcMotorExHandler extends HardwareComponentHandler<DcMotorEx> {
     // Manual control runtime variables
     private boolean stasisAchieved = false, lowerLimited = false, upperLimited = false, setMode = false, startedMoving = false;
     private double lastPoweredPos;
+    private final NullableDouble cachedPos = new NullableDouble();
 
     // todo: make this dynamic
     private int limitTolerance = 5;
@@ -40,10 +43,12 @@ public class DcMotorExHandler extends HardwareComponentHandler<DcMotorEx> {
     // its encoder values to be disabled.
     public DcMotorExHandler(String deviceName, DcMotorEx device, boolean runWithEncoder) {
         super(device);
-        device.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
-        this.startPos = device.getCurrentPosition();
-        this.lastPoweredPos = device.getCurrentPosition();
         this.runWithEncoder = runWithEncoder;
+        if (this.runWithEncoder) {
+            device.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+            this.startPos = device.getCurrentPosition();
+            this.lastPoweredPos = device.getCurrentPosition();
+        }
         this.deviceMode = device.getMode();
         this.name = deviceName;
     }
@@ -65,13 +70,14 @@ public class DcMotorExHandler extends HardwareComponentHandler<DcMotorEx> {
 
 
     private synchronized void driveMotor(double targetPosition, double power) {
-        if (getPosition() == targetPosition) {
+        if (equPos(targetPosition)) {
             this.device.setMode(this.deviceMode);
             return;
         }
         this.device.setTargetPosition((int) targetPosition);
         if (this.device.getMode() != DcMotor.RunMode.RUN_TO_POSITION) {
             this.deviceMode = this.device.getMode();
+            this.setMode = false;
         }
         this.device.setMode(DcMotor.RunMode.RUN_TO_POSITION);
         this.device.setPower(powerDir(targetPosition, power));
@@ -82,6 +88,9 @@ public class DcMotorExHandler extends HardwareComponentHandler<DcMotorEx> {
 
     private int dirMult() {
         return getDirection() == Direction.REVERSE ? -1 : 1;
+    }
+    private int powerMult() {
+        return GeneralUtils.signClamp(getPower());
     }
     private double powerDir(double targetPosition, double mult) {
         return -dirMult() * (targetPosition > getPosition() ? mult : -mult);
@@ -170,7 +179,7 @@ public class DcMotorExHandler extends HardwareComponentHandler<DcMotorEx> {
             device.setPower(0);
             return;
         }
-        this.setMode = false;
+//        this.setMode = false;
         if (!this.stasisAchieved && !this.lowerLimited && !this.upperLimited) {
             driveMotor(this.lastPoweredPos, 0.05);
             this.stasisAchieved = true;
@@ -182,6 +191,12 @@ public class DcMotorExHandler extends HardwareComponentHandler<DcMotorEx> {
             return;
         }
 
+        if (!this.setMode) {
+            this.device.setMode(this.deviceMode);
+            this.setMode = true;
+        }
+
+        cachePosition();
         if (this.startedMoving && this.runWithEncoder && towardsLower(power)) {
             if (this.lowerLimited && isAtLowerLimit()) return;
             if (isOrOutOfLowerLimit()) {
@@ -193,6 +208,7 @@ public class DcMotorExHandler extends HardwareComponentHandler<DcMotorEx> {
                     driveMotor(this.lowerPos, 0.05);
                     this.lowerLimited = true;
                 }
+                decachePosition();
                 return;
             }
         }
@@ -207,6 +223,7 @@ public class DcMotorExHandler extends HardwareComponentHandler<DcMotorEx> {
                     driveMotor(this.upperPos, 0.05);
                     this.upperLimited = true;
                 }
+                decachePosition();
                 return;
             }
         }
@@ -216,20 +233,21 @@ public class DcMotorExHandler extends HardwareComponentHandler<DcMotorEx> {
         this.upperLimited = false;
         this.stasisAchieved = false;
 
-        this.lastPoweredPos = getPosition();
+        if (this.runWithEncoder) this.lastPoweredPos = getPosition();
 
-        if (!this.setMode) {
-            this.device.setMode(this.deviceMode);
-            this.setMode = true;
-        }
+//        if (!this.setMode) {
+//            this.device.setMode(this.deviceMode);
+//            this.setMode = true;
+//        }
         if (!this.speedMap.isEmpty()) {
             this.speedMap.forEach((bounds, mult) -> {
                 if (bounds.inBetweenClosed(getPosition())) this.device.setPower(power * mult);
             });
         } else {
             this.device.setPower(power);
-            this.lastPoweredPos = getPosition();
         }
+        decachePosition();
+
     }
 
     public synchronized void setPosition(double position) {
@@ -266,6 +284,12 @@ public class DcMotorExHandler extends HardwareComponentHandler<DcMotorEx> {
     }
     public synchronized void enableEncoder() {
         this.runWithEncoder = true;
+    }
+    public synchronized void enableBrake() {
+        this.device.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+    }
+    public synchronized void disableBrake() {
+        this.device.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
     }
 
 
@@ -309,6 +333,19 @@ public class DcMotorExHandler extends HardwareComponentHandler<DcMotorEx> {
         return behindRelativePos(position, getRelativePosition());
     }
 
+    public boolean reachedPos(double post, double curr) {
+        return (dirMult()*powerMult()) < 0 ? pastPos(post, curr) : behindPos(post, curr);
+    }
+    public boolean reachedPos(double position) {
+        return reachedPos(position, getPosition());
+    }
+    public boolean reachedRelativePos(double post, double currPos) {
+        return powerMult() < 0 ? pastRelativePos(post, currPos) : behindRelativePos(post, currPos);
+    }
+    public boolean reachedRelativePos(double position) {
+        return reachedRelativePos(position, getRelativePosition());
+    }
+
     public double diff(double pos1, double pos2) {
         double diff = dirMult()*(pos2 - pos1);
         return Math.abs(diff) < getTargetPositionTolerance() ? 0 : diff;
@@ -319,7 +356,6 @@ public class DcMotorExHandler extends HardwareComponentHandler<DcMotorEx> {
     public double relativeDiff(double position) {
         return diff(getRelativePosition(), position);
     }
-
 
 
     public void setSpeedMap(Map<IntegerBounds, Double> speedMap) {
@@ -334,7 +370,17 @@ public class DcMotorExHandler extends HardwareComponentHandler<DcMotorEx> {
         return this.device.getPower();
     }
     public synchronized double getPosition() {
-        return this.device.getCurrentPosition();
+        return this.cachedPos.isSet() ? this.cachedPos.get() : (double) this.device.getCurrentPosition();
+    }
+    // Alias for getPosition()
+    public synchronized int getCurrentPosition() {
+        return (int) getPosition();
+    }
+    private synchronized double cachePosition() {
+        return this.cachedPos.set(getPosition());
+    }
+    private synchronized double decachePosition() {
+        return this.cachedPos.unset();
     }
     public int getTargetPositionTolerance() {
         return this.device.getTargetPositionTolerance();
