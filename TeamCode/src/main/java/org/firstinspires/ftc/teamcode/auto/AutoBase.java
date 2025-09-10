@@ -7,7 +7,12 @@ import org.firstinspires.ftc.teamcode.handlers.DcMotorExHandler;
 
 public abstract class AutoBase extends RobotBase {
 
-
+    //April Tag Id's
+    public final int BLUE_TAG = 20;
+    public final int RED_TAG = 24;
+    public final int GPP_TAG = 21;
+    public final int PGP_TAG = 22;
+    public final int PPG_TAG = 23;
 
     @Override
     public void init() {

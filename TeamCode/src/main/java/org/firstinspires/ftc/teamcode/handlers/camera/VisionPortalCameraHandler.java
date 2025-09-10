@@ -3,15 +3,22 @@ package org.firstinspires.ftc.teamcode.handlers.camera;
 import android.util.Size;
 
 import org.firstinspires.ftc.robotcore.external.hardware.camera.CameraName;
+import org.firstinspires.ftc.robotcore.external.stream.CameraStreamSource;
+import org.firstinspires.ftc.teamcode.visionprocessors.FrameGrabberProcessor;
 import org.firstinspires.ftc.vision.VisionPortal;
 import org.firstinspires.ftc.vision.VisionProcessor;
+import org.firstinspires.ftc.vision.apriltag.AprilTagProcessor;
 import org.opencv.core.Mat;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.stream.Collectors;
 
 public class VisionPortalCameraHandler extends CameraHandler<VisionPortal> {
 
-    public VisionPortalCameraHandler(VisionPortal device) {
+    private FrameGrabberProcessor frameGrabber;
+
+    private VisionPortalCameraHandler(VisionPortal device) {
         super(device);
     }
 
@@ -22,11 +29,9 @@ public class VisionPortalCameraHandler extends CameraHandler<VisionPortal> {
 
     @Override
     public Mat getCurrentFrame() {
-        return null; //TODO: figure out how tf to do this
+        if (this.frameGrabber == null) { return null; }
+        return this.frameGrabber.getLatestFrame();
     }
-
-
-
 
     //https://ftc-docs.firstinspires.org/en/latest/apriltag/vision_portal/visionportal_init/visionportal-init.html
     public static VisionPortal createCustomVisionPortal(CameraName camera, VisionProcessor... processor) {
@@ -43,6 +48,14 @@ public class VisionPortalCameraHandler extends CameraHandler<VisionPortal> {
                 .setAutoStopLiveView(true)
                 .setShowStatsOverlay(true) //Seems interesting TODO: remove or not
                 .build();
+    }
+
+    public static VisionPortalCameraHandler createVisionPortalHandler(CameraName camera, VisionProcessor... processor) {
+        FrameGrabberProcessor frameGrabber = new FrameGrabberProcessor();
+        ArrayList<VisionProcessor> processors = Arrays.stream(processor).collect(Collectors.toCollection(ArrayList::new));
+        processors.add(frameGrabber);
+        VisionPortal vp = createCustomVisionPortal(camera, (VisionProcessor[]) processors.toArray());
+        return new VisionPortalCameraHandler(vp);
     }
 
 }
