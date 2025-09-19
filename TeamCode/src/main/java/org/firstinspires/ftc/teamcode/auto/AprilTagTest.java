@@ -27,10 +27,10 @@ public class AprilTagTest extends AutoBase {
         super.init();
 
         aTagProc = AprilTagProcessor.easyCreateWithDefaults();
-        camera = VisionPortalCameraHandler.createVisionPortalHandler(
+        camera = new VisionPortalCameraHandler(VisionPortalCameraHandler.createCustomVisionPortal(
                 hardwareMap.get(WebcamName.class, "Webcam 1"),
                 aTagProc
-        );
+        ));
     }
 
     @Override

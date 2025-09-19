@@ -1,5 +1,7 @@
 package org.firstinspires.ftc.teamcode;
 
+import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
+
 import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
 import org.firstinspires.ftc.teamcode.handlers.camera.OpenCvCameraHandler;
 import org.opencv.core.Mat;
@@ -10,6 +12,7 @@ import org.wolfsonrobotics.RobotWebServer.server.ServerOpMode;
 
 import java.io.IOException;
 
+@Autonomous(name = "Robot Web Server", group = "Auto")
 public class RobotWithServer extends RobotBase implements ServerOpMode {
 
     RobotWebServer server;

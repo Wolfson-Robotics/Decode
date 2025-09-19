@@ -1,19 +1,27 @@
 package org.firstinspires.ftc.teamcode.auto;
 
 import com.qualcomm.hardware.rev.RevHubOrientationOnRobot;
+import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.hardware.IMU;
 
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.AngularVelocity;
+import org.firstinspires.ftc.robotcore.external.navigation.AxesOrder;
+import org.firstinspires.ftc.robotcore.external.navigation.AxesReference;
+import org.firstinspires.ftc.robotcore.external.navigation.Orientation;
+import org.firstinspires.ftc.robotcore.external.navigation.Quaternion;
 import org.firstinspires.ftc.robotcore.external.navigation.YawPitchRollAngles;
 import org.firstinspires.ftc.teamcode.RobotBase;
 
-public class IMUTest extends RobotBase {
+@Autonomous(name = "Imu Test", group = "Auto")
+public class IMUTest extends AutoBase {
     //see: https://ftc-docs.firstinspires.org/en/latest/programming_resources/imu/imu.html
-    IMU imu = hardwareMap.get(IMU.class, "imu");
+
+    IMU imu;
 
     @Override
     public void init() {
+        imu = hardwareMap.get(IMU.class, "imu");
         imu.initialize(new IMU.Parameters(
             new RevHubOrientationOnRobot(
                 RevHubOrientationOnRobot.LogoFacingDirection.FORWARD,

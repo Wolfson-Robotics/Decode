@@ -18,7 +18,7 @@ public class VisionPortalCameraHandler extends CameraHandler<VisionPortal> {
 
     private FrameGrabberProcessor frameGrabber;
 
-    private VisionPortalCameraHandler(VisionPortal device) {
+    public VisionPortalCameraHandler(VisionPortal device) {
         super(device);
     }
 
