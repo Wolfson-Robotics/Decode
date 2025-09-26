@@ -1,5 +1,7 @@
 package org.firstinspires.ftc.teamcode.util;
 
+import java.util.Scanner;
+
 public class GeneralUtils {
 
     // Methods borrowed from https://github.com/Wolfson-Robotics/ColorSampleDetection/blob/main/src/main/java/org/wolfsonrobotics/colorsampledetection/util/conv/ImageConverter.java
@@ -32,6 +34,18 @@ public class GeneralUtils {
         return val < 0 ? -1 : 1;
     }
 
+    /**
+     * Returns 1 or -1 whether the given boolean is true or false, respectively.
+     */
+    public static int boolSign(boolean val) {
+        return val ? 1 : -1;
+    }
+
+    public static String input(String prompt) {
+        Scanner sc = new Scanner(System.in);
+        System.out.print(prompt);
+        return sc.nextLine();
+    }
 
 
 }

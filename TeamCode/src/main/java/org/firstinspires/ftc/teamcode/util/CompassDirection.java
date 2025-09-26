@@ -64,6 +64,7 @@ public enum CompassDirection {
     /**
      * Looks up the closest matching direction by degrees.
      * Input is normalized to the nearest 45° increment.
+     * Returns north if <code>deg</code> is 0.
      */
     public static CompassDirection fromDegrees(int deg) {
         int normalized = ((deg % 360) + 360) % 360; // keep 0–359
@@ -73,7 +74,7 @@ public enum CompassDirection {
                 return dir;
             }
         }
-        throw new IllegalArgumentException("No direction for degrees: " + deg);
+        return CompassDirection.N;
     }
 
 }

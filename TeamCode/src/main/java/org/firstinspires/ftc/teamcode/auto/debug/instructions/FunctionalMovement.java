@@ -1,14 +1,15 @@
 package org.firstinspires.ftc.teamcode.auto.debug.instructions;
 
 import org.firstinspires.ftc.teamcode.auto.debug.DebugAuto;
-import org.firstinspires.ftc.teamcode.util.math.Cubic;
+import org.firstinspires.ftc.teamcode.util.TimeInterval;
+import org.firstinspires.ftc.teamcode.util.math.function.Cubic;
 
 public class FunctionalMovement implements DebugInstruction {
 
     private final Cubic lf, lb, rf, rb;
-    private final long duration;
+    private final TimeInterval duration;
 
-    public FunctionalMovement(Cubic lf, Cubic lb, Cubic rf, Cubic rb, long duration) {
+    public FunctionalMovement(Cubic lf, Cubic lb, Cubic rf, Cubic rb, TimeInterval duration) {
         this.lf = lf;
         this.lb = lb;
         this.rf = rf;
@@ -21,7 +22,7 @@ public class FunctionalMovement implements DebugInstruction {
     @Override
     public void run(DebugAuto instance) {
         long start = System.nanoTime();
-        while ((System.nanoTime() - start < duration)) {
+        while (TimeInterval.ofNanos(System.nanoTime() - start).compareTo(duration) < 0) {
             instance.lf_drive.setPower(lf.evaluate(System.nanoTime() - start));
             instance.lb_drive.setPower(lb.evaluate(System.nanoTime() - start));
             instance.rf_drive.setPower(rf.evaluate(System.nanoTime() - start));

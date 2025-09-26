@@ -5,6 +5,7 @@ import org.firstinspires.ftc.teamcode.auto.debug.instructions.DebugInstruction;
 
 public abstract class DebugAuto extends AutoBase {
 
+    // TODO: Make room for other movements in a different thread
     @Override
     public void start() {
         super.start();

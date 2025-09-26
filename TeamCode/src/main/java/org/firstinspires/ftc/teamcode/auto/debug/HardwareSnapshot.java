@@ -24,8 +24,8 @@ public class HardwareSnapshot implements Serializable {
     private long end;
     private long offset = 0L;
 
-    public final Map<HardwareComponentHandler<?>, Double> motorPoses = new IdentityHashMap<>();
-    public final Map<DcMotorExHandler, Double> motorPowers = new IdentityHashMap<>();
+    private final Map<HardwareComponentHandler<?>, Double> motorPoses = new IdentityHashMap<>();
+    private final Map<DcMotorExHandler, Double> motorPowers = new IdentityHashMap<>();
 
     private final double voltage;
 
@@ -252,8 +252,10 @@ public class HardwareSnapshot implements Serializable {
                     .map(s -> s.split(":"))
                     .forEach(motor -> {
                         if (motor.length != 2) throw new IllegalArgumentException("Invalid motor pos format");
-                        motorPoses.put(HandlerMap.get(motor[0].trim()),
-                                Double.parseDouble(Objects.requireNonNull(motor[1].trim())));
+                        motorPoses.put(
+                                (HardwareComponentHandler<?>) HandlerMap.get(motor[0].trim()),
+                                Double.parseDouble(Objects.requireNonNull(motor[1].trim()))
+                        );
                     });
         }
 
@@ -265,8 +267,10 @@ public class HardwareSnapshot implements Serializable {
                     .map(s -> s.split(":"))
                     .forEach(motor -> {
                         if (motor.length != 2) throw new IllegalArgumentException("Invalid motor power format");
-                        motorPowers.put((DcMotorExHandler) HandlerMap.get(motor[0].trim()),
-                                Double.parseDouble(Objects.requireNonNull(motor[1].trim())));
+                        motorPowers.put(
+                                HandlerMap.get(motor[0].trim()),
+                                Double.parseDouble(Objects.requireNonNull(motor[1].trim()))
+                        );
                     });
         }
 
