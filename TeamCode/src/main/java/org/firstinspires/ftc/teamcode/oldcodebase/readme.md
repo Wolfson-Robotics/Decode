@@ -1,1 +1,0 @@
-Is kept for quick reference, will be deleted when the next season actually comes.
